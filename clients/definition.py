@@ -1,0 +1,9 @@
+from abc import ABC
+
+
+class Client(ABC):
+    def __init__(self): ...
+
+    def start(self): ...
+
+    def close(self): ...

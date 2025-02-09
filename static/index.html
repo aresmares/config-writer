@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Config API</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    /* Add Config form styling */
+    #addForm {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      display: none;
+    }
+    #addForm input, #addForm select, #addForm textarea {
+      margin: 5px;
+      padding: 5px;
+    }
+    #addForm button {
+      margin: 5px;
+      padding: 5px 10px;
+    }
+    /* Table styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    button {
+      margin: 2px;
+      padding: 4px 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Config API</h1>
+  <button onclick="toggleAddForm()">Add Config</button>
+  
+  <!-- Add Config Form -->
+  <div id="addForm">
+    <input type="text" id="create-key" placeholder="Key">
+    <!-- The value field will change based on the selected type -->
+    <input type="text" id="create-value" placeholder="Value">
+    <select id="create-type">
+      <option value="string" selected>String</option>
+      <option value="boolean">Boolean</option>
+      <option value="dictionary">Dictionary</option>
+      <option value="list">List</option>
+    </select>
+    <button onclick="createConfig()">Submit</button>
+  </div>
+  
+  <!-- Configurations Table -->
+  <table id="configs-table">
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Value</th>
+        <th>Actions</th>
+        <th>Submit</th>
+      </tr>
+    </thead>
+    <tbody id="configs-table-body">
+      <!-- Table rows will be dynamically added here -->
+    </tbody>
+  </table>
+  
+  <script>
+    const API_BASE_URL = 'http://localhost:8000';
+    
+    // Toggle display of the Add Config form
+    function toggleAddForm() {
+      const form = document.getElementById("addForm");
+      form.style.display = (form.style.display === "none" || form.style.display === "") ? "block" : "none";
+    }
+    
+    // Update the Add Config form's value field based on type selection.
+    document.getElementById("create-type").addEventListener("change", function() {
+      let valueField = document.getElementById("create-value");
+      if (this.value === "boolean") {
+        if (valueField.type !== "checkbox") {
+          // Replace with a checkbox.
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.id = "create-value";
+          checkbox.style.margin = "5px";
+          valueField.parentNode.replaceChild(checkbox, valueField);
+        }
+      } else if (this.value === "dictionary" || this.value === "list") {
+        // Use a textarea for dictionary or list types.
+        if (valueField.tagName.toLowerCase() !== "textarea") {
+          const textarea = document.createElement("textarea");
+          textarea.id = "create-value";
+          textarea.placeholder = "Value (in JSON format)";
+          textarea.style.margin = "5px";
+          textarea.rows = 4;
+          valueField.parentNode.replaceChild(textarea, valueField);
+        }
+      } else {
+        // Use a text input for string types.
+        if (valueField.type !== "text") {
+          const textInput = document.createElement("input");
+          textInput.type = "text";
+          textInput.id = "create-value";
+          textInput.placeholder = "Value";
+          textInput.style.margin = "5px";
+          valueField.parentNode.replaceChild(textInput, valueField);
+        }
+      }
+    });
+    
+    // Fetch and display configurations in the table.
+    async function listConfigs() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/configs`);
+        const data = await response.json();
+        console.log("Received configs:", data);
+        const tableBody = document.getElementById("configs-table-body");
+        tableBody.innerHTML = ""; // Clear existing rows
+        
+        data.forEach(config => {
+          const row = document.createElement("tr");
+          row.dataset.key = config.key;
+          row.dataset.type = config.type;
+          
+          // Key cell
+          const keyCell = document.createElement("td");
+          keyCell.textContent = config.key;
+          row.appendChild(keyCell);
+          
+          // Value cell
+          const valueCell = document.createElement("td");
+          if (config.type === "boolean") {
+            // Create a disabled checkbox for booleans.
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = config.value.toLowerCase() === "true";
+            checkbox.disabled = true;
+            valueCell.appendChild(checkbox);
+          } else {
+            // For string, dictionary, and list, display the value as text.
+            valueCell.textContent = config.value;
+          }
+          row.appendChild(valueCell);
+          
+          // Actions cell: Edit and Delete buttons.
+          const actionsCell = document.createElement("td");
+          const editButton = document.createElement("button");
+          editButton.textContent = "Edit";
+          editButton.onclick = () => editRow(config.key, row);
+          actionsCell.appendChild(editButton);
+          const deleteButton = document.createElement("button");
+          deleteButton.textContent = "Delete";
+          deleteButton.onclick = () => deleteRow(config.key, row);
+          actionsCell.appendChild(deleteButton);
+          row.appendChild(actionsCell);
+          
+          // Submit cell: Submit button (initially disabled)
+          const submitCell = document.createElement("td");
+          const submitButton = document.createElement("button");
+          submitButton.textContent = "Submit";
+          submitButton.disabled = true;
+          submitButton.onclick = () => submitRow(config.key, row);
+          submitCell.appendChild(submitButton);
+          row.appendChild(submitCell);
+          
+          tableBody.appendChild(row);
+        });
+      } catch (error) {
+        console.error("Error fetching configs:", error);
+      }
+    }
+    
+    // Inline edit: enable editing based on type.
+    function editRow(key, rowElement) {
+      const type = rowElement.dataset.type;
+      const valueCell = rowElement.cells[1];
+      
+      if (type === "boolean") {
+        // Enable the checkbox.
+        const checkbox = valueCell.querySelector("input[type='checkbox']");
+        if (checkbox) {
+          checkbox.disabled = false;
+        }
+      } else if (type === "dictionary" || type === "list") {
+        // Replace text with a textarea.
+        if (!valueCell.querySelector("textarea")) {
+          const currentValue = valueCell.textContent;
+          const textarea = document.createElement("textarea");
+          textarea.value = currentValue;
+          textarea.rows = 4;
+          valueCell.innerHTML = "";
+          valueCell.appendChild(textarea);
+        }
+      } else {
+        // For string type, use a text input.
+        if (!valueCell.querySelector("input")) {
+          const currentValue = valueCell.textContent;
+          valueCell.innerHTML = `<input type="text" value="${currentValue}">`;
+        }
+      }
+      
+      // Enable the Submit button.
+      rowElement.cells[3].querySelector("button").disabled = false;
+    }
+    
+    // Submit inline updates to the API.
+    async function submitRow(key, rowElement) {
+      const type = rowElement.dataset.type;
+      const valueCell = rowElement.cells[1];
+      let newValue;
+      if (type === "boolean") {
+        const checkbox = valueCell.querySelector("input[type='checkbox']");
+        newValue = checkbox.checked ? "true" : "false";
+      } else if (type === "dictionary" || type === "list") {
+        const textarea = valueCell.querySelector("textarea");
+        newValue = textarea.value;
+      } else {
+        const input = valueCell.querySelector("input");
+        newValue = input.value;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/configs/${encodeURIComponent(key)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value: newValue })
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Error updating config");
+        }
+        const data = await response.json();
+        // Update the cell with the new value.
+        if (type === "boolean") {
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = data.value.toLowerCase() === "true";
+          checkbox.disabled = true;
+          valueCell.innerHTML = "";
+          valueCell.appendChild(checkbox);
+        } else if (type === "dictionary" || type === "list") {
+          // For dictionary and list, display the JSON string.
+          valueCell.textContent = data.value;
+        } else {
+          valueCell.textContent = data.value;
+        }
+        // Disable the Submit button.
+        rowElement.cells[3].querySelector("button").disabled = true;
+      } catch (error) {
+        alert("Error updating config: " + error);
+      }
+    }
+    
+    // Delete a configuration.
+    async function deleteRow(key, rowElement) {
+      if (!confirm("Are you sure you want to delete this config?")) return;
+      try {
+        const response = await fetch(`${API_BASE_URL}/configs/${encodeURIComponent(key)}`, {
+          method: "DELETE"
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Error deleting config");
+        }
+        rowElement.remove();
+      } catch (error) {
+        alert("Error deleting config: " + error);
+      }
+    }
+    
+    // Create a new configuration via the Add Config form.
+    async function createConfig() {
+      const key = document.getElementById("create-key").value.trim();
+      const type = document.getElementById("create-type").value;
+      let value;
+      if (type === "boolean") {
+        value = document.getElementById("create-value").checked ? "true" : "false";
+      } else if (type === "dictionary" || type === "list") {
+        value = document.getElementById("create-value").value.trim();
+      } else {
+        value = document.getElementById("create-value").value.trim();
+      }
+      if (!key || (type === "string" && !value)) {
+        alert("Please fill in both key and value.");
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/configs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, value, type })
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Error creating config");
+        }
+        // Clear the form fields.
+        document.getElementById("create-key").value = "";
+        if (type === "boolean") {
+          document.getElementById("create-value").checked = false;
+        } else {
+          document.getElementById("create-value").value = "";
+        }
+        toggleAddForm();
+        listConfigs();
+      } catch (error) {
+        alert("Error creating config: " + error);
+      }
+    }
+    
+    // Initial load of configurations.
+    listConfigs();
+  </script>
+</body>
+</html>

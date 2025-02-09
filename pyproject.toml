@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "config-writer"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <team-plateng@automata.tech>"]
+packages = [
+    { include = "*" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+# fastapi = "^0.115.7"
+pydantic = "^2.10.6"
+httpx = "^0.28.1"
+uvicorn = "^0.34.0"
+requests = "^2.32.3"
+sqlalchemy = "^2.0.37"
+fastapi = "^0.115.8"
+pydantic-settings = "^2.7.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
